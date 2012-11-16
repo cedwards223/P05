@@ -6,29 +6,30 @@
 #include "counter.h"
 
 /*
- * Function prototypes for the ocunter driver
+ * Function prototypes for the counter driver.
  */
-FORWARD _PROTOTYPE( int hello_open,      (message *m) );
-FORWARD _PROTOTYPE( int hello_close,     (message *m) );
-FORWARD _PROTOTYPE( struct device * hello_prepare, (dev_t device) );
-FORWARD _PROTOTYPE( int hello_transfer,  (endpoint_t endpt, int opcode,
+FORWARD _PROTOTYPE( int counter_open,      (message *m) );
+FORWARD _PROTOTYPE( int counter_close,     (message *m) );
+FORWARD _PROTOTYPE( struct device * counter_prepare, (dev_t device) );
+FORWARD _PROTOTYPE( int counter_transfer,  (endpoint_t endpt, int opcode,
                                           u64_t position, iovec_t *iov,
                                           unsigned int nr_req,
                                           endpoint_t user_endpt) );
+
 /* SEF functions and variables. */
 FORWARD _PROTOTYPE( void sef_local_startup, (void) );
 FORWARD _PROTOTYPE( int sef_cb_init, (int type, sef_init_info_t *info) );
 FORWARD _PROTOTYPE( int sef_cb_lu_state_save, (int) );
 FORWARD _PROTOTYPE( int lu_state_restore, (void) );
 
-/* Entry points to the hello driver. */
-PRIVATE struct chardriver hello_tab =
+/* Entry points to the counter driver. */
+PRIVATE struct chardriver counter_tab =
 {
-    hello_open,
-    hello_close,
+    counter_open,
+    counter_close,
     nop_ioctl,
-    hello_prepare,
-    hello_transfer,
+    counter_prepare,
+    counter_transfer,
     nop_cleanup,
     nop_alarm,
     nop_cancel,
@@ -36,42 +37,42 @@ PRIVATE struct chardriver hello_tab =
     NULL
 };
 
-/** Represents the /dev/hello device. */
-PRIVATE struct device hello_device;
+/** Represents the /dev/counter device. */
+PRIVATE struct device counter_device;
 
 /** State variable to count the number of times the device has been opened. */
 PRIVATE int open_counter;
 
-PRIVATE int hello_open(message *UNUSED(m))
+PRIVATE int counter_open(message *UNUSED(m))
 {
-    printf("hello_open(). Called %d time(s).\n", ++open_counter);
+    printf("counter_open(). Called %d time(s).\n", ++open_counter);
     return OK;
 }
 
-PRIVATE int hello_close(message *UNUSED(m))
+PRIVATE int counter_close(message *UNUSED(m))
 {
-    printf("hello_close()\n");
+    printf("counter_close()\n");
     return OK;
 }
 
-PRIVATE struct device * hello_prepare(dev_t UNUSED(dev))
+PRIVATE struct device * counter_prepare(dev_t UNUSED(dev))
 {
-    hello_device.dv_base = make64(0, 0);
-    hello_device.dv_size = make64(strlen(itoa(open_counter)), 0);
-    return &hello_device;
+    counter_device.dv_base = make64(0, 0);
+    counter_device.dv_size = make64(strlen(itoa(open_counter)), 0);
+    return &counter_device;
 }
 
-PRIVATE int hello_transfer(endpoint_t endpt, int opcode, u64_t position,
+PRIVATE int counter_transfer(endpoint_t endpt, int opcode, u64_t position,
     iovec_t *iov, unsigned nr_req, endpoint_t UNUSED(user_endpt))
 {
     int bytes, ret;
 
-    printf("hello_transfer()\n");
+    printf("counter_transfer()\n");
 
     if (nr_req != 1)
     {
         /* This should never trigger for character drivers at the moment. */
-        printf("HELLO: vectored transfer request, using first element only\n");
+        printf("COUNTER: vectored transfer request, using first element only\n");
     }
 
     bytes = strlen(itoa(open_counter)) - ex64lo(position) < iov->iov_size ?
@@ -85,9 +86,11 @@ PRIVATE int hello_transfer(endpoint_t endpt, int opcode, u64_t position,
     {
         case DEV_GATHER_S:
             ret = sys_safecopyto(endpt, (cp_grant_id_t) iov->iov_addr, 0,
-                    (vir_bytes) (itoa(open_counter) + ex64lo(position)),
-                                 bytes, D);
+                                (vir_bytes) (itoa(open_counter) + ex64lo(position)),
+                                 bytes, D,);
             iov->iov_size -= bytes;
+            break;
+
         default:
             return EINVAL;
     }
@@ -137,13 +140,13 @@ PRIVATE void sef_local_startup()
 
 PRIVATE int sef_cb_init(int type, sef_init_info_t *UNUSED(info))
 {
-/* Initialize the hello driver. */
+/* Initialize the counter driver. */
     int do_announce_driver = TRUE;
 
-    open_counter = 0;
+    open_counter = (-1) ;
     switch(type) {
         case SEF_INIT_FRESH:
-            printf("%s", HELLO_MESSAGE);
+            printf("%s", COUNTER_MESSAGE);
         break;
 
         case SEF_INIT_LU:
@@ -151,11 +154,11 @@ PRIVATE int sef_cb_init(int type, sef_init_info_t *UNUSED(info))
             lu_state_restore();
             do_announce_driver = FALSE;
 
-            printf("%sHey, I'm a new version!\n", HELLO_MESSAGE);
+            printf("%sHey, I'm a new version!\n", COUNTER_MESSAGE);
         break;
 
         case SEF_INIT_RESTART:
-            printf("%sHey, I've just been restarted!\n", HELLO_MESSAGE);
+            printf("%sHey, I've just been restarted!\n", COUNTER_MESSAGE);
         break;
     }
 
@@ -178,7 +181,8 @@ PUBLIC int main(void)
     /*
      * Run the main loop.
      */
-    chardriver_task(&hello_tab, CHARDRIVER_SYNC);
+    chardriver_task(&counter_tab, CHARDRIVER_SYNC);
+    printf("\n");
     return OK;
 }
 

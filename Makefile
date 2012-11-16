@@ -1,5 +1,5 @@
 # Makefile for the hello driver.
-PROG= 	counter	
+PROG=	counter
 SRCS=	counter.c
 
 DPADD+=	${LIBCHARDRIVER} ${LIBSYS}
