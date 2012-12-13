@@ -42,10 +42,12 @@ PRIVATE struct device counter_device;
 
 /** State variable to count the number of times the device has been opened. */
 PRIVATE int open_counter;
+PRIVATE char countNum;
 
 PRIVATE int counter_open(message *UNUSED(m))
 {
     printf("counter_open(). Called %d time(s).\n", ++open_counter);
+    countNum = (char)open_counter;
     return OK;
 }
 
@@ -58,7 +60,7 @@ PRIVATE int counter_close(message *UNUSED(m))
 PRIVATE struct device * counter_prepare(dev_t UNUSED(dev))
 {
     counter_device.dv_base = make64(0, 0);
-    counter_device.dv_size = make64(strlen(itoa(open_counter)), 0);
+    counter_device.dv_size = make64(strlen(countNum), 0);
     return &counter_device;
 }
 
@@ -75,8 +77,8 @@ PRIVATE int counter_transfer(endpoint_t endpt, int opcode, u64_t position,
         printf("COUNTER: vectored transfer request, using first element only\n");
     }
 
-    bytes = strlen(itoa(open_counter)) - ex64lo(position) < iov->iov_size ?
-            strlen(itoa(open_counter)) - ex64lo(position) : iov->iov_size;
+    bytes = strlen(countNum) - ex64lo(position) < iov->iov_size ?
+            strlen(countNum) - ex64lo(position) : iov->iov_size;
 
     if (bytes <= 0)
     {
@@ -86,7 +88,7 @@ PRIVATE int counter_transfer(endpoint_t endpt, int opcode, u64_t position,
     {
         case DEV_GATHER_S:
             ret = sys_safecopyto(endpt, (cp_grant_id_t) iov->iov_addr, 0,
-                                (vir_bytes) (itoa(open_counter) + ex64lo(position)),
+                                (vir_bytes) (countNum + ex64lo(position)),
                                  bytes, D,);
             iov->iov_size -= bytes;
             break;
